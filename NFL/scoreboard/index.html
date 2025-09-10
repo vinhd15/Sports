@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NFL Scoreboard & Countdown</title>
+  <link rel="stylesheet" href="scoreboard/style.css">
+  <base href="/NFL/scoreboard/">
+</head>
+<body>
+  <div class="container">
+    <h1>NFL Scoreboard</h1>
+
+    <div class="controls">
+      <label for="week-select">Choose Week:</label>
+      <select id="week-select"></select>
+      <button id="refresh-btn">Refresh Now</button>
+    </div>
+
+    <section class="countdown-section">
+      <h2>Next Game Countdown</h2>
+      <p id="countdown" class="countdown-timer">Loading...</p>
+    </section>
+
+    <section class="scores-section">
+      <h2>Scores</h2>
+      <div id="scores" class="scores"></div>
+    </section>
+
+    <p id="last-updated" class="last-updated"></p>
+  </div>
+
+  <script src="countdown.js"></script>
+  <script src="scores.js"></script>
+</body>
+</html>
