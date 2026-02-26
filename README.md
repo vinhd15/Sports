@@ -7,19 +7,24 @@ This project is a comprehensive web-based dashboard for viewing live NFL scores,
 ```
 NFL/
 ├── index.html                # Homepage with navigation links
-├── scoreboard/               # Scoreboard section
-│   ├── countdown.js
-│   ├── index.html
-│   ├── scores.js
-│   └── style.css
-├── standings/                # Standings section
-│   ├── index.html
-│   ├── style.css
-│   └── teams.js
-└── playoffs/                 # Playoff simulator
-    ├── index.html
-    ├── playoffs.js
-    └── style.css
+├── utils/                    # Shared utility modules
+│   ├── api.js               # API fetching utilities
+│   ├── data.js              # Data parsing and transformation
+│   ├── dom.js               # DOM manipulation helpers
+│   └── constants.js         # Configuration and constants
+├── scoreboard/              # Scoreboard section
+│   ├── countdown.js         # Countdown timer
+│   ├── index.html           # Scoreboard page
+│   ├── scores.js            # Score fetching and display
+│   └── style.css            # Scoreboard styles
+├── standings/               # Standings section
+│   ├── index.html           # Standings page
+│   ├── style.css            # Standings styles
+│   └── teams.js             # Team standings display
+└── playoffs/                # Playoff simulator
+    ├── index.html           # Playoffs page
+    ├── playoffs.js          # Bracket logic
+    └── style.css            # Bracket styles
 ```
 
 ## Features
@@ -48,7 +53,55 @@ NFL/
 - **Automatic Advancement:** Winners advance through Wild-card → Divisional → Conference → Super Bowl rounds.
 - **Smart Pairing:** The #1 seed (bye) faces the lowest remaining seed after wildcards; other winners face each other.
 - **Reset Bracket:** Clear all selections and start over with a reset button.
-- Displays all 7 seeds with correct playoff seeding structure.
+
+## How It Works
+
+### Shared Utility Modules (`utils/`)
+
+The project uses a utilities directory that provides core functionality to all three sections:
+
+**`api.js`** - Handles all ESPN API communication
+- Fetches scoreboard data for any week
+- Fetches current standings data
+- Provides error handling for failed requests
+
+**`data.js`** - Transforms raw API responses into usable data structures
+- Parses standings into team records organized by conference and division
+- Extracts playoff seeds (top 7 teams) from standings data
+- Converts scoreboard data into game records with scores and status
+- Determines winners from game scores
+
+**`dom.js`** - Provides DOM manipulation utilities
+- Creates elements with classes and content
+- Updates element text and HTML safely
+- Clears element contents
+- Attaches event listeners
+
+**`constants.js`** - Centralized configuration
+- API endpoint URLs
+- Playoff configuration (7 seeds, 2 conferences, 18 weeks)
+- Auto-refresh intervals
+
+### How the Sections Work
+
+**Scoreboard** (`scores.js` + `countdown.js`)
+- Fetches games for the selected week via `api.js`
+- Parses game data via `data.js` 
+- Renders scores using `dom.js` helpers
+- Auto-refreshes every 60 seconds on game days
+
+**Standings** (`teams.js`)
+- Fetches current standings via `api.js`
+- Transforms standings to conference/division structure via `data.js`
+- Renders table using `dom.js` utilities
+
+**Playoffs** (`playoffs.js`)
+- Fetches standings via `api.js`
+- Extracts top 7 seeds via `data.js`
+- Simulates bracket with manual winner selection
+
+Each module follows the pattern: **Fetch → Parse → Render**
+
 
 ## Usage
 
@@ -69,12 +122,6 @@ NFL/
 - **Scores & Schedules:** ESPN's scoreboard API
 - **Standings:** ESPN's standings endpoint with live seed assignments
 - **Playoff Seeding:** Extracted directly from ESPN's standings `seed` field (seeds 1–7 per conference)
-
-## Customization
-
-- Update styles in `scoreboard/style.css`, `standings/style.css`, and `playoffs/style.css` as needed.
-- Extend JavaScript logic in `scores.js`, `teams.js`, and `playoffs.js` for additional features.
-- Modify playoff bracket styling or labels in `playoffs/index.html` and `playoffs/style.css`.
 
 ---
 

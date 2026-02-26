@@ -1,33 +1,46 @@
-// Score update logic
+/**
+ * Scoreboard Module - Display NFL scores with countdown
+ * Uses utilities for API, data, and DOM manipulation
+ */
+
+import { fetchScoreboard } from '../utils/api.js';
+import { parseScoreboard, getGameWinner } from '../utils/data.js';
+import { clearElement, updateText, addEventListener } from '../utils/dom.js';
+import { SCHEDULE_CONFIG, PLAYOFF_CONFIG } from '../utils/constants.js';
 
 let refreshInterval;
 
+/**
+ * Determine the current week (adjusts after playoffs start)
+ */
 async function getDefaultWeek() {
-  const baseUrl = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard";
-  const resp = await fetch(baseUrl);
-  const data = await resp.json();
+  try {
+    const data = await fetchScoreboard();
+    const currentWeek = data.week.number;
+    const now = new Date();
 
-  const currentWeek = data.week.number;
-  const events = data.events;
-  const now = new Date();
+    // Find last game in current week
+    const lastGame = data.events
+      .map(e => new Date(e.date))
+      .sort((a, b) => b - a)[0];
 
-  // Find last game in current week
-  const lastGame = events
-    .map(e => new Date(e.date))
-    .sort((a, b) => b - a)[0];
-
-  if (lastGame && now > lastGame) {
-    return currentWeek + 1; // after MNF, before TNF
+    return lastGame && now > lastGame 
+      ? currentWeek + SCHEDULE_CONFIG.FUTURE_WEEK_OFFSET
+      : currentWeek;
+  } catch (err) {
+    console.error("Could not determine default week:", err);
+    return 1;
   }
-
-  return currentWeek;
 }
 
+/**
+ * Populate the week dropdown with weeks 1-18
+ */
 function populateWeekDropdown(defaultWeek) {
   const select = document.getElementById("week-select");
-  select.innerHTML = "";
+  clearElement(select);
 
-  for (let i = 1; i <= 18; i++) {
+  for (let i = 1; i <= PLAYOFF_CONFIG.TOTAL_WEEKS; i++) {
     const option = document.createElement("option");
     option.value = i;
     option.textContent = `Week ${i}`;
@@ -36,26 +49,85 @@ function populateWeekDropdown(defaultWeek) {
   }
 }
 
+/**
+ * Create and append a score card to the container
+ */
+function createScoreCard(game) {
+  const card = document.createElement("div");
+  card.className = "scores-card scores-row";
+
+  const winner = getGameWinner(game);
+  const homeWon = winner === "home";
+  const awayWon = winner === "away";
+
+  // Home team
+  const homeDiv = document.createElement("div");
+  homeDiv.className = "scores-team" + (homeWon || winner === "tie" ? " bold" : "");
+  homeDiv.textContent = game.homeTeam;
+
+  // Score
+  const scoreDiv = document.createElement("div");
+  scoreDiv.className = "scores-score";
+  scoreDiv.textContent = `${game.homeScore} - ${game.awayScore}`;
+
+  // Away team
+  const awayDiv = document.createElement("div");
+  awayDiv.className = "scores-team" + (awayWon || winner === "tie" ? " bold" : "");
+  awayDiv.textContent = game.awayTeam;
+
+  // Status
+  const statusDiv = document.createElement("div");
+  statusDiv.className = "scores-status";
+  statusDiv.textContent = game.status;
+
+  card.appendChild(homeDiv);
+  card.appendChild(scoreDiv);
+  card.appendChild(awayDiv);
+  card.appendChild(statusDiv);
+
+  return card;
+}
+
+/**
+ * Manage auto-refresh based on game status
+ */
+function manageRefreshInterval(isFutureWeek, isGameDay) {
+  const refreshBtn = document.getElementById("refresh-btn");
+  refreshBtn.disabled = isFutureWeek || !isGameDay;
+
+  if (!isFutureWeek && isGameDay) {
+    if (!refreshInterval) {
+      refreshInterval = setInterval(loadScores, SCHEDULE_CONFIG.AUTO_REFRESH_INTERVAL);
+    }
+  } else {
+    if (refreshInterval) {
+      clearInterval(refreshInterval);
+      refreshInterval = null;
+    }
+  }
+}
+
+/**
+ * Load and display scores for the selected week
+ */
 async function loadScores() {
   const weekToShow = parseInt(document.getElementById("week-select").value, 10);
-  const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?week=${weekToShow}`;
-
   const container = document.getElementById("scores");
-  container.innerHTML = "Loading...";
+  updateText(container.id, "Loading...");
 
   try {
-    const response = await fetch(url);
-    const data = await response.json();
+    const data = await fetchScoreboard(weekToShow);
+    const parsed = parseScoreboard(data);
 
-    container.innerHTML = "";
+    clearElement(container);
 
-    if (!data.events || data.events.length === 0) {
-      container.textContent = "No games found.";
-      document.getElementById("countdown").textContent = "N/A";
+    if (parsed.games.length === 0) {
+      updateText(container.id, "No games found.");
+      updateText("countdown", "N/A");
       return;
     }
 
-    // Add Home/Away header
+    // Add header
     const header = document.createElement("div");
     header.className = "scores-card scores-header";
     header.innerHTML = `
@@ -66,92 +138,26 @@ async function loadScores() {
     `;
     container.appendChild(header);
 
-    // Show scores with card layout
-    data.events.forEach(event => {
-      const competition = event.competitions[0];
-      const competitors = competition.competitors;
-
-      // Find home and away teams
-      const home = competitors.find(t => t.homeAway === "home");
-      const away = competitors.find(t => t.homeAway === "away");
-
-      // Determine winner
-      let homeBold = false, awayBold = false;
-      if (competition.status.type.completed) {
-        if (parseInt(home.score, 10) > parseInt(away.score, 10)) homeBold = true;
-        else if (parseInt(away.score, 10) > parseInt(home.score, 10)) awayBold = true;
-        else if (parseInt(home.score, 10) === parseInt(away.score, 10)) { homeBold = awayBold = true; }
-      }
-
-      // Card row
-      const card = document.createElement("div");
-      card.className = "scores-card scores-row"; // Add scores-row class
-
-      // Home team
-      const homeDiv = document.createElement("div");
-      homeDiv.className = "scores-team" + (homeBold ? " bold" : "");
-      homeDiv.textContent = home.team.displayName;
-
-      // Score
-      const scoreDiv = document.createElement("div");
-      scoreDiv.className = "scores-score";
-      scoreDiv.textContent = `${home.score} - ${away.score}`;
-
-      // Away team
-      const awayDiv = document.createElement("div");
-      awayDiv.className = "scores-team" + (awayBold ? " bold" : "");
-      awayDiv.textContent = away.team.displayName;
-
-      // Status
-      const statusDiv = document.createElement("div");
-      statusDiv.className = "scores-status";
-      statusDiv.textContent = competition.status.type.description;
-
-      card.appendChild(homeDiv);
-      card.appendChild(scoreDiv);
-      card.appendChild(awayDiv);
-      card.appendChild(statusDiv);
-
-      container.appendChild(card);
+    // Add score cards
+    parsed.games.forEach(game => {
+      container.appendChild(createScoreCard(game));
     });
 
-    // Find next game
-    const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
-    const upcoming = data.events
-      .filter(e => new Date(e.date) > now)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    // Handle countdown and refresh
+    if (parsed.nextGame) {
+      const nextTeams = `${parsed.nextGame.awayTeam} vs ${parsed.nextGame.homeTeam}`;
+      const defaultWeek = await getDefaultWeek();
+      const isFutureWeek = weekToShow > defaultWeek;
 
-    // Determine if selected week is in the future
-    const defaultWeek = await getDefaultWeek();
-    const isFutureWeek = weekToShow > defaultWeek;
+      window.startCountdown(parsed.nextGame.date, nextTeams, isFutureWeek);
 
-    // Check if any game is scheduled for today
-    const isGameDay = data.events.some(e => e.date.slice(0, 10) === todayStr);
+      const now = new Date();
+      const todayStr = now.toISOString().slice(0, 10);
+      const isGameDay = parsed.games.some(g => g.date.slice(0, 10) === todayStr);
 
-    if (upcoming.length > 0) {
-      const nextGame = upcoming[0];
-      const nextTeams = nextGame.competitions[0].competitors
-        .map(t => t.team.displayName)
-        .join(" vs ");
-      window.startCountdown(nextGame.date, nextTeams, isFutureWeek);
-
-      // Enable refresh only for current week and on game days
-      document.getElementById("refresh-btn").disabled = isFutureWeek || !isGameDay;
-      if (!isFutureWeek && isGameDay) {
-        if (!refreshInterval) {
-          refreshInterval = setInterval(loadScores, 60 * 1000);
-        }
-      } else {
-        if (refreshInterval) {
-          clearInterval(refreshInterval);
-          refreshInterval = null;
-        }
-      }
+      manageRefreshInterval(isFutureWeek, isGameDay);
     } else {
-      document.getElementById("countdown").textContent = "All games finished.";
-
-      // Disable refresh and stop auto-refresh for completed or future week
+      updateText("countdown", "All games finished.");
       document.getElementById("refresh-btn").disabled = true;
       if (refreshInterval) {
         clearInterval(refreshInterval);
@@ -161,29 +167,28 @@ async function loadScores() {
 
     // Timestamp
     const nowStr = new Date().toLocaleTimeString();
-    document.getElementById("last-updated").textContent = `Last updated: ${nowStr}`;
+    updateText("last-updated", `Last updated: ${nowStr}`);
 
   } catch (err) {
-    container.innerHTML = "Error loading scores.";
-    document.getElementById("countdown").textContent = "Error loading countdown.";
-    console.error(err);
+    updateText(container.id, "Error loading scores.");
+    updateText("countdown", "Error loading countdown.");
   }
 }
 
-// Setup
+/**
+ * Initialize the scoreboard
+ */
 async function init() {
   const defaultWeek = await getDefaultWeek();
   populateWeekDropdown(defaultWeek);
-  loadScores();
+  await loadScores();
 
   // Auto-refresh every 60s
-  refreshInterval = setInterval(loadScores, 60 * 1000);
+  refreshInterval = setInterval(loadScores, SCHEDULE_CONFIG.AUTO_REFRESH_INTERVAL);
 
-  // Dropdown change reloads scores
-  document.getElementById("week-select").addEventListener("change", loadScores);
-
-  // Manual refresh
-  document.getElementById("refresh-btn").addEventListener("click", loadScores);
+  // Event listeners
+  addEventListener("week-select", "change", loadScores);
+  addEventListener("refresh-btn", "click", loadScores);
 }
 
 init();
