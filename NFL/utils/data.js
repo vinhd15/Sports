@@ -55,15 +55,15 @@ export function extractPlayoffSeeds(standingsData) {
   const seeds = { AFC: [], NFC: [] };
 
   Object.entries(parsed).forEach(([conf, teams]) => {
-    const sorted = [...teams].sort((a, b) => {
-      if (b.winPct !== a.winPct) return b.winPct - a.winPct;
-      if (b.wins !== a.wins) return b.wins - a.wins;
-      return a.losses - b.losses;
-    });
+    // Filter teams that have a playoff seed assigned
+    const seededTeams = teams.filter(team => team.seed && team.seed > 0);
+    
+    // Sort by seed number (ascending)
+    seededTeams.sort((a, b) => a.seed - b.seed);
 
-    seeds[conf] = sorted.slice(0, PLAYOFF_CONFIG.PLAYOFF_SEEDS).map((team, idx) => ({
+    seeds[conf] = seededTeams.map(team => ({
       name: team.name,
-      seed: idx + 1
+      seed: team.seed
     }));
   });
 

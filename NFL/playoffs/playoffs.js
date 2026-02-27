@@ -73,12 +73,13 @@ function renderMatch(match, conf, round, index) {
   const bName = match.b ? `${match.b.seed}. ${match.b.name}` : '';
   const aClass = match.b ? 'team' : 'team bye';
   const bClass = match.a ? 'team' : 'team bye';
+  const aSelected = match.winner && match.winner === match.a ? 'selected' : '';
+  const bSelected = match.winner && match.winner === match.b ? 'selected' : '';
 
   return `
     <div class="match" data-conf="${conf}" data-round="${round}" data-index="${index}">
-      <span class="${aClass}" data-side="a">${aName}</span>
-      <span class="vs">vs</span>
-      <span class="${bClass}" data-side="b">${bName}</span>
+      <span class="${aClass} ${aSelected}" data-side="a">${aName}</span>
+      <span class="${bClass} ${bSelected}" data-side="b">${bName}</span>
     </div>
   `;
 }
@@ -87,31 +88,65 @@ function renderMatch(match, conf, round, index) {
  * Render entire bracket
  */
 function render() {
-  let html = "";
+  let html = `<div class="bracket-wrapper">`;
 
-  // Render conferences
-  PLAYOFF_CONFIG.CONFERENCES.forEach(conf => {
-    html += `<div class="conference"><h2>${conf}</h2>`;
-    
-    ['wildcard', 'divisional', 'conference'].forEach(round => {
-      html += `<div class="round"><h3>${round.charAt(0).toUpperCase() + round.slice(1)}</h3>`;
-      bracket[conf][round].forEach((match, i) => {
-        html += renderMatch(match, conf, round, i);
-      });
-      html += `</div>`;
+  // Render AFC (left side)
+  html += `<div class="conf-bracket afc">`;
+  html += `<h2>AFC</h2>`;
+  html += `<div class="bracket-rounds">`;
+  
+  ['wildcard', 'divisional', 'conference'].forEach(round => {
+    html += `<div class="round">`;
+    html += `<h3>${round.charAt(0).toUpperCase() + round.slice(1)}</h3>`;
+    html += `<div class="matches">`;
+    bracket['AFC'][round].forEach((match, i) => {
+      html += renderMatch(match, 'AFC', round, i);
     });
-    html += `</div>`;
+    html += `</div></div>`;
   });
+  
+  html += `</div></div>`;
 
-  // Render Super Bowl
-  html += `<div class="conference"><h2>Super Bowl</h2>`;
+  // Render Super Bowl (middle)
+  html += `<div class="superbowl-container">`;
+  html += `<div class="superbowl-content">`;
+  html += `<h2>Super Bowl</h2>`;
+  html += `<div class="matches">`;
   bracket.superbowl.forEach((match, i) => {
     html += renderMatch(match, 'SB', 'superbowl', i);
   });
   html += `</div>`;
+  html += `<button id="reset-btn">Reset Bracket</button>`;
+  html += `</div></div>`;
+
+  // Render NFC (right side)
+  html += `<div class="conf-bracket nfc">`;
+  html += `<h2>NFC</h2>`;
+  html += `<div class="bracket-rounds">`;
+  
+  ['wildcard', 'divisional', 'conference'].forEach(round => {
+    html += `<div class="round">`;
+    html += `<h3>${round.charAt(0).toUpperCase() + round.slice(1)}</h3>`;
+    html += `<div class="matches">`;
+    bracket['NFC'][round].forEach((match, i) => {
+      html += renderMatch(match, 'NFC', round, i);
+    });
+    html += `</div></div>`;
+  });
+  
+  html += `</div></div></div>`;
 
   document.getElementById('bracket').innerHTML = html;
   attachHandlers();
+
+  // make sure reset button works after every render
+  const resetBtn = document.getElementById('reset-btn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      initBracket();
+      render();
+    });
+  }
 }
 
 /**
